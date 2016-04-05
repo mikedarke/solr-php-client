@@ -43,6 +43,8 @@ class ServerConfiguration
     protected $systemUrl;
     protected $threadsUrl;
 
+    protected $proxy;
+
     /**
      * Query delimiters. Someone might want to be able to change
      * these (to use &amp; instead of & for example), so I've provided them.
@@ -53,14 +55,43 @@ class ServerConfiguration
     protected $queryStringDelimiter = '&';
     protected $queryBracketsEscaped = true;
 
-    public function __construct($host = 'localhost', $port = 8180, $path = '/solr/', $solr_writer = 'json') {
+    public function __construct($host = 'localhost', $port = 8180, $path = '/solr/', $solr_writer = 'json', $proxy = '') {
         $this->host = $host;
         $this->port = $port;
         $this->path = $path;
         $this->solrWriter = $solr_writer;
 
+        if (!empty($proxy)) {
+            $this->proxy = $proxy;
+        }
+
         $this->initUrls();
     }
+
+    /**
+     * @return string
+     */
+    public function getProxy()
+    {
+        return $this->proxy;
+    }
+
+    /**
+     * @param string $proxy
+     */
+    public function setProxy($proxy)
+    {
+        $this->proxy = $proxy;
+    }
+
+    /**
+     * @return string
+     */
+    public function getSolrWriter()
+    {
+        return $this->solrWriter;
+    }
+
 
     /**
      * @return string

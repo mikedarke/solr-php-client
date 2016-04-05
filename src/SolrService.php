@@ -5,6 +5,7 @@ namespace Darke\Solr;
 use Darke\Solr\Exception\HttpException;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
 
 class SolrService
@@ -56,6 +57,7 @@ class SolrService
     protected $httpClient = null;
 
 
+
     /**
      * Constructor. All parameters are optional and will take on default values
      * if not specified.
@@ -67,6 +69,7 @@ class SolrService
         $this->serverConfiguration = $serverConfiguration;
         $this->setHttpClient($httpClient);
     }
+
 
     /**
      * @return ClientInterface
@@ -90,7 +93,7 @@ class SolrService
      * @param string $url
      * @param float $timeout Read timeout in seconds
      *
-*@return Response
+     * @return string
      *
      * @throws HttpException If a non 200 response status is returned
      */
@@ -98,9 +101,16 @@ class SolrService
     {
         $httpTransport = $this->getHttpClient();
 
-        $httpResponse = $httpTransport->request(self::METHOD_GET, $url, [
-            'connect_timeout' => ($timeout ? $timeout : 10)
-        ]);
+        $options = [
+          'connect_timeout' => ($timeout ? $timeout : 10)
+        ];
+
+        $proxy = $this->serverConfiguration->getProxy();
+        if (!empty($proxy)) {
+            $options['proxy'] = $proxy;
+        }
+
+        $httpResponse = $httpTransport->request(self::METHOD_GET, $url, $options);
 
         if ($httpResponse->getStatusCode() != 200)
         {
@@ -114,23 +124,29 @@ class SolrService
      * Central method for making a post operation against this Solr Server
      *
      * @param string $url
-     * @param string $rawPost
+     * @param string $json
      * @param float $timeout Read timeout in seconds
-     * @param string $contentType
      *
-     * @return ResponseInterface
+     * @return string
      *
      * @throws HttpException If a non 200 response status is returned
      */
-    protected function post($url, $rawPost, $timeout = FALSE, $contentType = 'text/json; charset=UTF-8')
+    protected function post($url, $json, $timeout = FALSE)
     {
         $httpTransport = $this->getHttpClient();
 
-        $httpResponse = $httpTransport->request(self::METHOD_POST, $url, [
-          'body' => $rawPost,
+        $options = [
+          'json' => $json,
           'connect_timeout' => ($timeout ? $timeout : 10),
-          'headers' => ['Content-Type' => $contentType]
-        ]);
+          'stream' => false
+        ];
+
+        $proxy = $this->serverConfiguration->getProxy();
+        if (!empty($proxy)) {
+            $options['proxy'] = $proxy;
+        }
+
+        $httpResponse = $httpTransport->request(self::METHOD_POST, $url, $options);
 
         if ($httpResponse->getStatusCode() != 200)
         {
@@ -152,9 +168,17 @@ class SolrService
         $start = microtime(true);
 
         $httpTransport = $this->getHttpClient();
-        $httpResponse = $httpTransport->request(self::METHOD_GET, $this->serverConfiguration->getPingUrl(),[
+
+        $options = [
           'connect_timeout' => ($timeout ? $timeout : 10)
-        ]);
+        ];
+
+        $proxy = $this->serverConfiguration->getProxy();
+        if (!empty($proxy)) {
+            $options['proxy'] = $proxy;
+        }
+
+        $httpResponse = $httpTransport->request('HEAD', $this->serverConfiguration->getPingUrl(), $options);
 
         if ($httpResponse->getStatusCode() == 200)
         {
@@ -169,30 +193,135 @@ class SolrService
     /**
      * Call the /admin/system servlet and retrieve system information about Solr
      *
-     * @return Response
+     * @return string
      *
      * @throws HttpException If an error occurs during the service call
      */
     public function system()
     {
-        return $this->get($this->serverConfiguration->getSystemUrl());
+        $response = $this->get($this->serverConfiguration->getSystemUrl());
+        return $this->getResponseBody($response);
     }
 
     /**
      * Call the /admin/threads servlet and retrieve information about all threads in the
      * Solr servlet's thread group. Useful for diagnostics.
      *
-     * @return ResponseInterface
+     * @return string
      *
      * @throws HttpException If an error occurs during the service call
      */
     public function threads()
     {
-        return $this->get($this->serverConfiguration->getThreadsUrl());
+        $response = $this->get($this->serverConfiguration->getThreadsUrl());
+        return $this->getResponseBody($response);
     }
 
-    public function addDocument($documentJson, $allowDuplicate = false, $overwritePending = true, $overwriteCommitted = true, $commitWithin = 0) {
+    public function add($documents, $overwrite = true, $commitWithin = 5000) {
 
+        $request = [
+          'add' => [
+            'commitWithin' => $commitWithin,
+            'overwrite' => $overwrite,
+            'docs' => $documents
+          ]
+        ];;
+
+/*        foreach ($documents as $doc) {
+            $request[] =
+        }*/
+
+        $response = $this->post($this->serverConfiguration->getUpdateUrl(), $documents);
+        return $this->getResponseBody($response);
     }
 
+    public function delete($param) {
+        $deleteDoc = [
+            'delete' => $param
+        ];
+        $response = $this->post($this->serverConfiguration->getUpdateUrl(), $deleteDoc);
+        return $this->getResponseBody($response);
+    }
+
+    /**
+     * Simple Search interface
+     *
+     * @param string $query The raw query string
+     * @param int $offset The starting offset for result documents
+     * @param int $limit The maximum number of result documents to return
+     * @param array $params key / value pairs for other query parameters (see Solr documentation), use arrays for parameter keys used more than once (e.g. facet.field)
+     * @param string $method The HTTP method (Apache_Solr_Service::METHOD_GET or Apache_Solr_Service::METHOD::POST)
+     * @return string
+     *
+     * @throws HttpException If an error occurs during the service call
+     * @throws \Exception If an invalid HTTP method is used
+     */
+    public function search($query, $offset = 0, $limit = 10, $params = array(), $method = self::METHOD_GET)
+    {
+        // ensure params is an array
+        if (!is_null($params))
+        {
+            if (!is_array($params))
+            {
+                // params was specified but was not an array - invalid
+                throw new \Exception("\$params must be a valid array or null");
+            }
+        }
+        else
+        {
+            $params = array();
+        }
+
+        // construct our full parameters
+
+        // common parameters in this interface
+        $params['wt'] = $this->serverConfiguration->getSolrWriter();
+        $params['json.nl'] = $this->_namedListTreatment;
+
+        $params['q'] = $query;
+        $params['start'] = $offset;
+        $params['rows'] = $limit;
+
+        $searchUrl = $this->serverConfiguration->getSearchUrl();
+        /** @var ResponseInterface $response */
+        $response = null;
+        if ($method == self::METHOD_GET)
+        {
+            $queryDelimiter = '?';
+            $queryString = $this->generateQueryString($params);
+            $response = $this->get($searchUrl . $queryDelimiter . $queryString);
+        }
+        else if ($method == self::METHOD_POST)
+        {
+            $response = $this->post($searchUrl, $params, FALSE);
+        }
+        else
+        {
+            throw new \Exception("Unsupported method '$method', please use the Apache_Solr_Service::METHOD_* constants");
+        }
+
+        $body = $this->getResponseBody($response);
+
+        return $body;
+    }
+
+    protected function getResponseBody(ResponseInterface $response) {
+        $responseBody = $response->getBody();
+        if ($responseBody instanceof Stream) {
+            $body = '';
+            while (!$responseBody->eof()) {
+                $body .= $responseBody->read(1024);
+            }
+
+            return $body;
+        }
+
+        return $responseBody;
+    }
+
+    protected function generateQueryString($params)
+    {
+        $queryString = http_build_query($params);
+        return preg_replace('/\\[(?:[0-9]|[1-9][0-9]+)\\]=/', '=', $queryString);
+    }
 }
