@@ -4,7 +4,6 @@ namespace Darke\Solr;
 
 use Darke\Solr\Exception\HttpException;
 use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
 
@@ -55,8 +54,7 @@ class SolrService
      * @var ClientInterface
      */
     protected $httpClient = null;
-
-
+    
 
     /**
      * Constructor. All parameters are optional and will take on default values
@@ -85,75 +83,6 @@ class SolrService
     public function setHttpClient($httpClient)
     {
         $this->httpClient = $httpClient;
-    }
-
-    /**
-     * Central method for making a get operation against this Solr Server
-     *
-     * @param string $url
-     * @param float $timeout Read timeout in seconds
-     *
-     * @return string
-     *
-     * @throws HttpException If a non 200 response status is returned
-     */
-    protected function get($url, $timeout = FALSE)
-    {
-        $httpTransport = $this->getHttpClient();
-
-        $options = [
-          'connect_timeout' => ($timeout ? $timeout : 10)
-        ];
-
-        $proxy = $this->serverConfiguration->getProxy();
-        if (!empty($proxy)) {
-            $options['proxy'] = $proxy;
-        }
-
-        $httpResponse = $httpTransport->request(self::METHOD_GET, $url, $options);
-
-        if ($httpResponse->getStatusCode() != 200)
-        {
-            throw new HttpException($httpResponse);
-        }
-
-        return $httpResponse;
-    }
-
-    /**
-     * Central method for making a post operation against this Solr Server
-     *
-     * @param string $url
-     * @param string $json
-     * @param float $timeout Read timeout in seconds
-     *
-     * @return string
-     *
-     * @throws HttpException If a non 200 response status is returned
-     */
-    protected function post($url, $json, $timeout = FALSE)
-    {
-        $httpTransport = $this->getHttpClient();
-
-        $options = [
-          'json' => $json,
-          'connect_timeout' => ($timeout ? $timeout : 10),
-          'stream' => false
-        ];
-
-        $proxy = $this->serverConfiguration->getProxy();
-        if (!empty($proxy)) {
-            $options['proxy'] = $proxy;
-        }
-
-        $httpResponse = $httpTransport->request(self::METHOD_POST, $url, $options);
-
-        if ($httpResponse->getStatusCode() != 200)
-        {
-            throw new HttpException($httpResponse);
-        }
-
-        return $httpResponse;
     }
 
     /**
@@ -218,21 +147,12 @@ class SolrService
     }
 
     public function add($documents, $overwrite = true, $commitWithin = 5000) {
-
-        $request = [
-          'add' => [
-            'commitWithin' => $commitWithin,
-            'overwrite' => $overwrite,
-            'docs' => $documents
-          ]
-        ];;
-
-/*        foreach ($documents as $doc) {
-            $request[] =
-        }*/
-
         $response = $this->post($this->serverConfiguration->getUpdateUrl(), $documents);
         return $this->getResponseBody($response);
+    }
+
+    public function deleteById($id) {
+        return $this->delete(['id' => $id]);
     }
 
     public function delete($param) {
@@ -323,5 +243,74 @@ class SolrService
     {
         $queryString = http_build_query($params);
         return preg_replace('/\\[(?:[0-9]|[1-9][0-9]+)\\]=/', '=', $queryString);
+    }
+
+    /**
+     * Central method for making a get operation against this Solr Server
+     *
+     * @param string $url
+     * @param float $timeout Read timeout in seconds
+     *
+     * @return string
+     *
+     * @throws HttpException If a non 200 response status is returned
+     */
+    protected function get($url, $timeout = FALSE)
+    {
+        $httpTransport = $this->getHttpClient();
+
+        $options = [
+          'connect_timeout' => ($timeout ? $timeout : 10)
+        ];
+
+        $proxy = $this->serverConfiguration->getProxy();
+        if (!empty($proxy)) {
+            $options['proxy'] = $proxy;
+        }
+
+        $httpResponse = $httpTransport->request(self::METHOD_GET, $url, $options);
+
+        if ($httpResponse->getStatusCode() != 200)
+        {
+            throw new HttpException($httpResponse);
+        }
+
+        return $httpResponse;
+    }
+
+    /**
+     * Central method for making a post operation against this Solr Server
+     *
+     * @param string $url
+     * @param string $json
+     * @param float $timeout Read timeout in seconds
+     *
+     * @return string
+     *
+     * @throws HttpException If a non 200 response status is returned
+     */
+    protected function post($url, $json, $timeout = FALSE)
+    {
+        $httpTransport = $this->getHttpClient();
+
+        $options = [
+          'json' => $json,
+          'connect_timeout' => ($timeout ? $timeout : 10),
+          'stream' => false
+        ];
+
+        $proxy = $this->serverConfiguration->getProxy();
+        if (!empty($proxy)) {
+            $options['proxy'] = $proxy;
+        }
+
+        $httpResponse = $httpTransport->request(self::METHOD_POST, $url, $options);
+
+        if ($httpResponse->getStatusCode() != 200)
+        {
+            throw new HttpException($httpResponse);
+        }
+
+        return $httpResponse;
     }
 }

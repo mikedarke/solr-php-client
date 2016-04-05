@@ -29,33 +29,20 @@ class ServerConfiguration
     protected $host;
     protected $port;
     protected $path;
-
     protected $solrWriter;
-
-    /**
-     * Constructed servlet full path URLs
-     *
-     * @var string
-     */
     protected $pingUrl;
     protected $updateUrl;
     protected $searchUrl;
     protected $systemUrl;
     protected $threadsUrl;
-
     protected $proxy;
-
-    /**
-     * Query delimiters. Someone might want to be able to change
-     * these (to use &amp; instead of & for example), so I've provided them.
-     *
-     * @var string
-     */
+    protected $read = true;
+    protected $write = true;
     protected $queryDelimiter = '?';
     protected $queryStringDelimiter = '&';
     protected $queryBracketsEscaped = true;
 
-    public function __construct($host = 'localhost', $port = 8180, $path = '/solr/', $solr_writer = 'json', $proxy = '') {
+    public function __construct($host = 'localhost', $port = 8180, $path = '/solr/', $solr_writer = 'json', $proxy = '', $read = true, $write = true) {
         $this->host = $host;
         $this->port = $port;
         $this->path = $path;
@@ -66,6 +53,8 @@ class ServerConfiguration
         }
 
         $this->initUrls();
+        $this->read = $read;
+        $this->write = $write;
     }
 
     /**
