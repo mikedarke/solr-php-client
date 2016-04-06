@@ -65,6 +65,6 @@ class CriteriaGroup
             $built[] = $criteria->build();
         }
 
-        return explode(' AND ', $built);
+        return implode(' AND ', $built);
     }
 }

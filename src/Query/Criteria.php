@@ -38,7 +38,7 @@ class Criteria
     public function addSingleValue($key, $value)
     {
         if (substr($key, 0, 1) != '-') {
-            $this->query[] = "+{$key}:\"{$value}\"";
+            $this->query[] = "{$key}:\"{$value}\"";
         } else {
             $this->query[] = "-{$key}:\"{$value}\"";
         }
