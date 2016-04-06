@@ -200,7 +200,7 @@ class ServerConfiguration
         //Initialize our full servlet URLs now that we have server information
         $this->extractUrl = $this->constructUrl(self::EXTRACT_SERVLET);
         $this->pingUrl = $this->constructUrl(self::PING_SERVLET, ['wt' => $this->solrWriter]);
-        $this->searchUrl = $this->constructUrl(self::SEARCH_SERVLET);
+        $this->searchUrl = $this->constructUrl(self::SEARCH_SERVLET, ['wt' => $this->solrWriter]);
         $this->systemUrl = $this->constructUrl(self::SYSTEM_SERVLET, ['wt' => $this->solrWriter]);
         $this->threadsUrl = $this->constructUrl(self::THREADS_SERVLET, ['wt' => $this->solrWriter]);
         $this->updateUrl = $this->constructUrl(self::UPDATE_SERVLET, ['wt' => $this->solrWriter]);

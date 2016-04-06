@@ -3,23 +3,19 @@
 namespace Darke\Solr;
 
 use Darke\Solr\Exception\HttpException;
+use Darke\Solr\Query\QueryBuilder;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
 
 class SolrService
 {
-
-    /**
-     * NamedList Treatment constants
-     */
-    const NAMED_LIST_FLAT = 'flat';
-    const NAMED_LIST_MAP = 'map';
     /**
      * Search HTTP Methods
      */
     const METHOD_GET = 'GET';
     const METHOD_POST = 'POST';
+    const METHOD_HEAD = 'HEAD';
 
     /** @var  ServerConfiguration $serverConfiguration */
     protected $serverConfiguration;
@@ -41,20 +37,12 @@ class SolrService
     protected $_collapseSingleValueArrays = true;
 
     /**
-     * How NamedLists should be formatted in the output.  This specifically effects facet counts. Valid values
-     * are {@link Apache_Solr_Service::NAMED_LIST_MAP} (default) or {@link Apache_Solr_Service::NAMED_LIST_FLAT}.
-     *
-     * @var string
-     */
-    protected $_namedListTreatment = self::NAMED_LIST_MAP;
-
-    /**
      * HTTP Transport implementation (pluggable)
      *
      * @var ClientInterface
      */
     protected $httpClient = null;
-    
+
 
     /**
      * Constructor. All parameters are optional and will take on default values
@@ -64,10 +52,25 @@ class SolrService
      * @param ClientInterface $httpClient
      */
     public function __construct(ServerConfiguration $serverConfiguration, ClientInterface $httpClient) {
-        $this->serverConfiguration = $serverConfiguration;
+        $this->setServerConfiguration($serverConfiguration);
         $this->setHttpClient($httpClient);
     }
 
+    /**
+     * @return ServerConfiguration
+     */
+    public function getServerConfiguration()
+    {
+        return $this->serverConfiguration;
+    }
+
+    /**
+     * @param ServerConfiguration $serverConfiguration
+     */
+    public function setServerConfiguration($serverConfiguration)
+    {
+        $this->serverConfiguration = $serverConfiguration;
+    }
 
     /**
      * @return ClientInterface
@@ -96,27 +99,18 @@ class SolrService
     {
         $start = microtime(true);
 
-        $httpTransport = $this->getHttpClient();
-
         $options = [
-          'connect_timeout' => ($timeout ? $timeout : 10)
+          'connect_timeout' => ($timeout ? $timeout : 2)
         ];
 
-        $proxy = $this->serverConfiguration->getProxy();
-        if (!empty($proxy)) {
-            $options['proxy'] = $proxy;
-        }
-
-        $httpResponse = $httpTransport->request('HEAD', $this->serverConfiguration->getPingUrl(), $options);
+        $httpResponse = $this->request(self::METHOD_HEAD, $this->serverConfiguration->getPingUrl(), $options);
 
         if ($httpResponse->getStatusCode() == 200)
         {
             return microtime(true) - $start;
         }
-        else
-        {
-            return false;
-        }
+
+        return false;
     }
 
     /**
@@ -146,15 +140,42 @@ class SolrService
         return $this->getResponseBody($response);
     }
 
+    /**
+     * @param      $documents
+     * @param bool $overwrite
+     * @param int  $commitWithin
+     *
+     * @return \Psr\Http\Message\StreamInterface|string
+     * @throws \Darke\Solr\Exception\HttpException
+     */
     public function add($documents, $overwrite = true, $commitWithin = 5000) {
         $response = $this->post($this->serverConfiguration->getUpdateUrl(), $documents);
         return $this->getResponseBody($response);
     }
 
+    /**
+     * Delete a document by it's ID
+     *
+     * @param $id
+     *
+     * @return \Psr\Http\Message\StreamInterface|string
+     */
     public function deleteById($id) {
         return $this->delete(['id' => $id]);
     }
 
+    /**
+     * Delete document(s) using given param
+     *
+     * Example:
+     *  $service->delete(['query' => '*:*']);
+     *  $service->delete(['id' => 1]);
+     *
+     * @param $param
+     *
+     * @return \Psr\Http\Message\StreamInterface|string
+     * @throws \Darke\Solr\Exception\HttpException
+     */
     public function delete($param) {
         $deleteDoc = [
             'delete' => $param
@@ -164,67 +185,27 @@ class SolrService
     }
 
     /**
-     * Simple Search interface
+     * @param \Darke\Solr\Query\QueryBuilder $query
      *
-     * @param string $query The raw query string
-     * @param int $offset The starting offset for result documents
-     * @param int $limit The maximum number of result documents to return
-     * @param array $params key / value pairs for other query parameters (see Solr documentation), use arrays for parameter keys used more than once (e.g. facet.field)
-     * @param string $method The HTTP method (Apache_Solr_Service::METHOD_GET or Apache_Solr_Service::METHOD::POST)
-     * @return string
-     *
-     * @throws HttpException If an error occurs during the service call
-     * @throws \Exception If an invalid HTTP method is used
+     * @return \Psr\Http\Message\StreamInterface|string
+     * @throws \Darke\Solr\Exception\HttpException
      */
-    public function search($query, $offset = 0, $limit = 10, $params = array(), $method = self::METHOD_GET)
-    {
-        // ensure params is an array
-        if (!is_null($params))
-        {
-            if (!is_array($params))
-            {
-                // params was specified but was not an array - invalid
-                throw new \Exception("\$params must be a valid array or null");
-            }
-        }
-        else
-        {
-            $params = array();
-        }
-
-        // construct our full parameters
-
-        // common parameters in this interface
-        $params['wt'] = $this->serverConfiguration->getSolrWriter();
-        $params['json.nl'] = $this->_namedListTreatment;
-
-        $params['q'] = $query;
-        $params['start'] = $offset;
-        $params['rows'] = $limit;
-
+    public function search(QueryBuilder $query) {
         $searchUrl = $this->serverConfiguration->getSearchUrl();
-        /** @var ResponseInterface $response */
-        $response = null;
-        if ($method == self::METHOD_GET)
-        {
-            $queryDelimiter = '?';
-            $queryString = $this->generateQueryString($params);
-            $response = $this->get($searchUrl . $queryDelimiter . $queryString);
-        }
-        else if ($method == self::METHOD_POST)
-        {
-            $response = $this->post($searchUrl, $params, FALSE);
-        }
-        else
-        {
-            throw new \Exception("Unsupported method '$method', please use the Apache_Solr_Service::METHOD_* constants");
-        }
+        $params = $query->build();
+        $response = $this->post($searchUrl, $params);
 
         $body = $this->getResponseBody($response);
-
         return $body;
     }
 
+    /**
+     * Get the response body
+     *
+     * @param \Psr\Http\Message\ResponseInterface $response
+     *
+     * @return \Psr\Http\Message\StreamInterface|string
+     */
     protected function getResponseBody(ResponseInterface $response) {
         $responseBody = $response->getBody();
         if ($responseBody instanceof Stream) {
@@ -251,31 +232,17 @@ class SolrService
      * @param string $url
      * @param float $timeout Read timeout in seconds
      *
-     * @return string
+     * @return ResponseInterface
      *
      * @throws HttpException If a non 200 response status is returned
      */
     protected function get($url, $timeout = FALSE)
     {
-        $httpTransport = $this->getHttpClient();
-
         $options = [
           'connect_timeout' => ($timeout ? $timeout : 10)
         ];
 
-        $proxy = $this->serverConfiguration->getProxy();
-        if (!empty($proxy)) {
-            $options['proxy'] = $proxy;
-        }
-
-        $httpResponse = $httpTransport->request(self::METHOD_GET, $url, $options);
-
-        if ($httpResponse->getStatusCode() != 200)
-        {
-            throw new HttpException($httpResponse);
-        }
-
-        return $httpResponse;
+        return $this->request(self::METHOD_GET, $url, $options);
     }
 
     /**
@@ -291,20 +258,34 @@ class SolrService
      */
     protected function post($url, $json, $timeout = FALSE)
     {
-        $httpTransport = $this->getHttpClient();
-
         $options = [
           'json' => $json,
           'connect_timeout' => ($timeout ? $timeout : 10),
           'stream' => false
         ];
 
-        $proxy = $this->serverConfiguration->getProxy();
-        if (!empty($proxy)) {
-            $options['proxy'] = $proxy;
+        return $this->request(self::METHOD_GET, $url, $options);
+    }
+
+    /**
+     * @param $method
+     * @param $url
+     * @param $options
+     *
+     * @return \Psr\Http\Message\ResponseInterface
+     * @throws \Darke\Solr\Exception\HttpException
+     */
+    protected function request($method, $url, $options) {
+
+        if (empty($options['proxy'])) {
+            $proxy = $this->serverConfiguration->getProxy();
+            if (!empty($proxy)) {
+                $options['proxy'] = $proxy;
+            }
         }
 
-        $httpResponse = $httpTransport->request(self::METHOD_POST, $url, $options);
+        $httpTransport = $this->getHttpClient();
+        $httpResponse = $httpTransport->request($method, $url, $options);
 
         if ($httpResponse->getStatusCode() != 200)
         {
