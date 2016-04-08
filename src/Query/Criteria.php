@@ -35,13 +35,9 @@ class Criteria
      *
      * @return QueryBuilder
      */
-    public function addSingleValue($key, $value)
+    public function addPhrase($key, $value)
     {
-        if (substr($key, 0, 1) != '-') {
-            $this->query[] = "{$key}:\"{$value}\"";
-        } else {
-            $this->query[] = "-{$key}:\"{$value}\"";
-        }
+        $this->query[] = "{$key}:\"{$value}\"";
 
         return $this;
     }
@@ -50,14 +46,14 @@ class Criteria
      * Add a multi value criteria
      *
      * @param $key
-     * @param $value
+     * @param $values
      *
      * @return QueryBuilder
      */
-    public function addMultiValue($key, $value)
+    public function addMultiValue($key, $values)
     {
         $params = array();
-        foreach ($value as $singleValue) {
+        foreach ($values as $singleValue) {
             $params[] = "{$key}:\"{$singleValue}\"";
         }
         $this->query[] = "(" . implode(" OR ", $params) . ")";
@@ -69,7 +65,8 @@ class Criteria
      * Add a range criteria
      *
      * @param $key
-     * @param $value
+     * @param $from
+     * @param $to
      *
      * @return QueryBuilder
      */
@@ -114,6 +111,11 @@ class Criteria
      * @return array
      */
     public function build() {
+        if (empty($this->query)) {
+            //include everything
+            return '*:*';
+        }
+
         $delimiter = ' ' . $this->operator . ' ';
         $built = implode($delimiter, $this->query);
 

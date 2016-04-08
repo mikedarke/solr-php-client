@@ -12,6 +12,13 @@ namespace Darke\Solr\Query;
 class QueryBuilder
 {
     /**
+     * Query operators
+     */
+    const AND_OP = 'AND';
+    const OR_OP = 'OR';
+    const NOT_OP = 'NOT';
+
+    /**
      * NamedList Treatment constants
      */
     const NAMED_LIST_FLAT = 'flat';
@@ -30,7 +37,7 @@ class QueryBuilder
     /**
      * @var int Start of result
      */
-    protected $start = 0;
+    protected $offset = 0;
     /**
      * @var int Number of result to return
      */
@@ -38,7 +45,7 @@ class QueryBuilder
     /**
      * @var string The sort order of results
      */
-    protected $orderBy;
+    protected $sort;
     /**
      * @var array The fields to include in results
      */
@@ -56,10 +63,11 @@ class QueryBuilder
      * Adds a criteria into a new group
      *
      * @param \Darke\Solr\Query\Criteria $criteria
+     * @param string $operator
      *
      * @return $this
      */
-    public function addCriteria(Criteria $criteria, $operator = 'AND') {
+    public function addCriteria(Criteria $criteria, $operator = self::AND_OP) {
         $group = new CriteriaGroup($operator);
         $group->addCriteria($criteria);
         $this->criteriaGroups[] = $group;
@@ -67,14 +75,24 @@ class QueryBuilder
         return $this;
     }
 
+    /**
+     * @param \Darke\Solr\Query\Criteria $criteria
+     *
+     * @return $this
+     */
     public function addOr(Criteria $criteria) {
-        $this->addCriteria($criteria, 'OR');
+        $this->addCriteria($criteria, self::OR_OP);
 
         return $this;
     }
 
+    /**
+     * @param \Darke\Solr\Query\Criteria $criteria
+     *
+     * @return $this
+     */
     public function addNot(Criteria $criteria) {
-        $this->addCriteria($criteria, 'NOT');
+        $this->addCriteria($criteria, self::NOT_OP);
 
         return $this;
     }
@@ -92,13 +110,13 @@ class QueryBuilder
     /**
      * Specify the start of result
      *
-     * @param $start
+     * @param $offset
      *
      * @return QueryBuilder
      */
-    public function start($start)
+    public function offset($offset)
     {
-        $this->start = $start;
+        $this->offset = $offset;
 
         return $this;
     }
@@ -125,9 +143,9 @@ class QueryBuilder
      *
      * @return QueryBuilder
      */
-    public function order($field, $direction = 'asc')
+    public function sort($field, $direction = 'asc')
     {
-        $this->orderBy = $field . ' ' . $direction;
+        $this->sort = $field . ' ' . $direction;
 
         return $this;
     }
@@ -153,8 +171,8 @@ class QueryBuilder
      */
     public function build() {
         $params = [];
-        if (!empty($this->orderBy)) {
-            $params['sort'] = $this->orderBy;
+        if (!empty($this->sort)) {
+            $params['sort'] = $this->sort;
         }
         if (!empty($this->fields)) {
             $params['fields'] = implode(',', $this->fields);
@@ -163,7 +181,7 @@ class QueryBuilder
         $params['filter'] = $this->filters;
 
         $params['query'] = $this->getQuery();
-        $params['offset'] = $this->start;
+        $params['offset'] = $this->offset;
         $params['limit'] = $this->limit;
 
         return $params;
@@ -179,7 +197,7 @@ class QueryBuilder
         $i = 0;
         /** @var CriteriaGroup $group */
         foreach ($this->criteriaGroups as $group) {
-            if ($i > 0) {
+            if ($i > 0 || $group->getOperator() == self::NOT_OP) {
                 $queryString .= ' ' . $group->getOperator() . ' ';
             }
             $queryString .= $group->build();
