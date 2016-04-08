@@ -42,7 +42,7 @@ class ServerConfiguration
     protected $queryStringDelimiter = '&';
     protected $queryBracketsEscaped = true;
 
-    public function __construct($host = 'localhost', $port = 8180, $path = '/solr/', $solr_writer = 'json', $proxy = '', $read = true, $write = true) {
+    public function __construct($host = 'localhost', $port = 8983, $path = '/solr/', $solr_writer = 'json', $proxy = '', $read = true, $write = true) {
         $this->host = $host;
         $this->port = $port;
         $this->path = $path;

@@ -1,4 +1,14 @@
 {
+    "name": "mikedarke/solr-php-client",
+    "description": "A PHP library for interacting with Solr instances.",
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Mike Darke",
+            "email": "mike.darke@gmail.com",
+            "role": "Developer"
+        }
+    ],
     "require": {
         "guzzlehttp/guzzle": "^6.2"
     },
