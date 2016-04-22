@@ -52,7 +52,7 @@ class SolrService
      * @param ServerConfiguration $serverConfiguration
      * @param ClientInterface $httpClient
      */
-    public function __construct(ServerConfiguration $serverConfiguration, ClientInterface $httpClient = false) {
+    public function __construct(ServerConfiguration $serverConfiguration, ClientInterface $httpClient = null) {
         if (!$httpClient) {
             $httpClient = new GuzzleClient();
         }
