@@ -5,6 +5,7 @@ namespace Darke\Solr;
 use Darke\Solr\Exception\HttpException;
 use Darke\Solr\Query\QueryBuilder;
 use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
 
@@ -51,7 +52,10 @@ class SolrService
      * @param ServerConfiguration $serverConfiguration
      * @param ClientInterface $httpClient
      */
-    public function __construct(ServerConfiguration $serverConfiguration, ClientInterface $httpClient) {
+    public function __construct(ServerConfiguration $serverConfiguration, ClientInterface $httpClient = false) {
+        if (!$httpClient) {
+            $httpClient = new GuzzleClient();
+        }
         $this->setServerConfiguration($serverConfiguration);
         $this->setHttpClient($httpClient);
     }
