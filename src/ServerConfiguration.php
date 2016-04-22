@@ -26,9 +26,7 @@ class ServerConfiguration
      *
      * @var string
      */
-    protected $host;
-    protected $port;
-    protected $path;
+    protected $baseUrl;
     protected $solrWriter;
     protected $pingUrl;
     protected $updateUrl;
@@ -42,10 +40,8 @@ class ServerConfiguration
     protected $queryStringDelimiter = '&';
     protected $queryBracketsEscaped = true;
 
-    public function __construct($host = 'localhost', $port = 8983, $path = '/solr/', $solr_writer = 'json', $proxy = '', $read = true, $write = true) {
-        $this->host = $host;
-        $this->port = $port;
-        $this->path = $path;
+    public function __construct($url, $solr_writer = 'json', $proxy = '', $read = true, $write = true) {
+        $this->baseUrl = $url;
         $this->solrWriter = $solr_writer;
 
         if (!empty($proxy)) {
@@ -55,6 +51,22 @@ class ServerConfiguration
         $this->initUrls();
         $this->read = $read;
         $this->write = $write;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBaseUrl()
+    {
+        return $this->baseUrl;
+    }
+
+    /**
+     * @param string $baseUrl
+     */
+    public function setBaseUrl($baseUrl)
+    {
+        $this->baseUrl = $baseUrl;
     }
 
     /**
@@ -79,47 +91,6 @@ class ServerConfiguration
     public function getSolrWriter()
     {
         return $this->solrWriter;
-    }
-
-
-    /**
-     * @return string
-     */
-    public function getHost()
-    {
-        return $this->host;
-    }
-
-    /**
-     * @param string $host
-     */
-    public function setHost($host)
-    {
-        $this->host = $host;
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getPort()
-    {
-        return $this->port;
-    }
-
-    /**
-     * @param mixed $port
-     */
-    public function setPort($port)
-    {
-        $this->port = $port;
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getPath()
-    {
-        return $this->path;
     }
 
     /**
@@ -189,7 +160,7 @@ class ServerConfiguration
             $queryString = '';
         }
 
-        return 'http://' . $this->host . ':' . $this->port . $this->path . $servlet . $queryString;
+        return $this->baseUrl . $servlet . $queryString;
     }
 
     /**
